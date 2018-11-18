@@ -4,5 +4,5 @@ import           Lib
 
 main :: IO ()
 main = do
-  upgrade Upgrade
-  return ()
+  res <- upgrade Upgrade
+  cat res

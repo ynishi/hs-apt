@@ -16,11 +16,13 @@ module Lib
   , update
   , upgrade
   , eval
+  , cat
   ) where
 
 import           Control.Monad
-import           Data.List.Split        as S
-import           Data.Text              as T
+import           Data.List.Split as S
+import           Data.Text       as T
+import           Data.Text.IO    as TIO
 import           System.Process
 
 type Upgradable = Bool
@@ -76,6 +78,9 @@ upgrade Upgrade = do
   if p
     then upgradeInternal []
     else return []
+
+cat :: [Text] -> IO ()
+cat = TIO.putStrLn <$> T.concat
 
 -- internal
 aptInternal :: Sub -> [Opt] -> IO [Text]
