@@ -4,5 +4,6 @@ import           Lib
 
 main :: IO ()
 main = do
-  res <- upgrade Upgrade
-  cat res
+  resApt <- upgrade Upgrade
+  cat resApt
+  -- upgradeStack UpgradeStack

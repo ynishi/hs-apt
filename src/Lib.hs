@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE GADTs                #-}
+{-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE StandaloneDeriving   #-}
@@ -10,12 +11,15 @@
 
 module Lib
   ( Apt(..)
+  , Stack(..)
   , Sub(..)
   , Opt(..)
   , Upgradable
   , update
   , upgrade
   , eval
+  , updateStack
+  , upgradeStack
   , cat
   ) where
 
@@ -23,6 +27,7 @@ import           Control.Monad
 import           Data.List.Split as S
 import           Data.Text       as T
 import           Data.Text.IO    as TIO
+import           Prelude         as P
 import           System.Process
 
 type Upgradable = Bool
@@ -38,6 +43,13 @@ data Apt a where
   Upgrade :: Apt [Package]
 
 deriving instance Show (Apt a) => Show (Apt a)
+
+data Stack a where
+  Stack :: Show a => a -> Stack a
+  UpdateStack :: Stack ()
+  UpgradeStack :: Stack ()
+
+deriving instance Show (Stack a) => Show (Stack a)
 
 data Sub
   = SubUpdate
@@ -82,17 +94,31 @@ upgrade Upgrade = do
 cat :: [Text] -> IO ()
 cat = TIO.putStrLn <$> T.concat
 
+updateStack :: Stack a -> IO ()
+updateStack UpdateStack = stackInternal SubUpdate [] >>= cat
+
+upgradeStack :: Stack a -> IO ()
+upgradeStack UpgradeStack = do
+  updateStack UpdateStack
+  res <- stackInternal SubUpgrade []
+  cat res
+
 -- internal
 aptInternal :: Sub -> [Opt] -> IO [Text]
-aptInternal sub opts =
-  Prelude.map pack . S.splitOn "\n" <$>
-  readProcess "apt" (show sub : Prelude.map show (OptYes : opts)) ""
+aptInternal = cmdInternal "apt" (P.map show . (OptYes :))
+
+stackInternal :: Sub -> [Opt] -> IO [Text]
+stackInternal = cmdInternal "stack" (P.map show)
+
+cmdInternal :: String -> ([Opt] -> [String]) -> Sub -> [Opt] -> IO [Text]
+cmdInternal cmd f sub opts =
+  P.map pack . S.splitOn "\n" <$> readProcess cmd (show sub : f opts) ""
 
 upgradeInternal :: [Opt] -> IO [Text]
 upgradeInternal opts = upgradeOutFilter <$> aptInternal SubUpgrade opts
   where
     upgradeOutFilter :: [Text] -> [Text]
     upgradeOutFilter =
-      Prelude.map pack .
-      Prelude.filter (not . Prelude.null) .
-      Prelude.filter (\s -> count "..." (pack s) == 0) . Prelude.map unpack
+      P.map pack .
+      P.filter (not . P.null) .
+      P.filter (\s -> count "..." (pack s) == 0) . P.map unpack
