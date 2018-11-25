@@ -25,6 +25,7 @@ dependencies:
 - text
 - stm
 - split
+- optparse-applicative
 
 library:
   source-dirs: src
