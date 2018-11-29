@@ -2,6 +2,7 @@ module Main where
 
 import           Data.Semigroup      ((<>))
 import           Lib
+import qualified Libx                as L
 import           Options.Applicative
 
 newtype AppOpts = AppOpts
@@ -18,6 +19,8 @@ appOpts =
 
 main :: IO ()
 main = do
+  a <- L.newApt
+  l <- L.update . L.Upg $ a
   o <- execParser opts
   case target o of
     "apt"   -> upgrade Upgrade >>= cat
