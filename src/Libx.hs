@@ -15,6 +15,7 @@ module Libx where
 
 import           Control.Monad
 import           Control.Monad.State.Lazy
+import           Data.List                as DL
 import           Data.List.Split          as S
 import           Data.Text                as T
 import           Data.Text.IO             as TIO
@@ -67,16 +68,17 @@ empty = Empty
 list :: Entity a => Upg NonEmptyPT a -> IO (Upg NonEmptyPT a)
 list (List u) = do
   x <- listEntity u
-  return . Upg $ x
+  return . Upgrade $ x
 
 upg :: a -> Upg NonEmptyPT a
 upg = Upg
 
 update :: Entity a => Upg NonEmptyPT a -> IO (Upg NonEmptyPT a)
-update (Update u) = Update <$> updateEntity u
+update (Update u) = List <$> updateEntity u
+update (Upg u)    = List <$> updateEntity u
 
 upgrade :: Entity a => Upg NonEmptyPT a -> IO (Upg NonEmptyPT a)
-upgrade (Upgrade u) = Upgrade <$> upgradeEntity u
+upgrade (Upgrade u) = Upg <$> upgradeEntity u
 
 class Entity a where
   updateEntity :: a -> IO a
@@ -93,24 +95,30 @@ newApt = do
 instance Entity Apt where
   updateEntity (Apt tVar) = do
     d <- readProcess "apt" ["update"] ""
-    atomically $ writeTVar tVar $ parse d
-    print $ "tVar:" ++ show d
+    TIO.putStrLn . pack $ "Updated:\n" ++ d
     return $ Apt tVar
-    where
-      parse = P.map pack . S.splitOn "\n"
   upgradeEntity (Apt tVar) = do
-    d <- readProcess "apt" ["upgrade"] ""
-    atomically . writeTVar tVar . upgradeOutFilter . parse $ d
-    print $ "tVar:" ++ show d
+    ps <- readTVarIO tVar
+    d <- readProcess "apt" ("upgrade" : "-y" : P.map (sq . show) ps) ""
+    let pd = parse d
+    atomically . writeTVar tVar . upgradeOutFilter $ pd
+    TIO.putStrLn . T.concat $ "Upgraded:\n" : pd
     return $ Apt tVar
     where
-      parse = P.map pack . S.splitOn "\n"
+      parse = P.map pack . DL.lines
+      sq :: String -> String
+      sq ('\"':s) = P.init s
+      sq s        = s
   listEntity (Apt tVar) = do
-    d <- readProcess "apt" ["upgrade", "list"] ""
-    atomically . writeTVar tVar . upgradeOutFilter . parse $ d
+    d <- readProcess "apt" ["list", "--upgradeable"] ""
+    let pd = parse d
+    atomically . writeTVar tVar . upgradeOutFilter $ pd
+    TIO.putStrLn . T.concat $ "Upgradable List:" : pd
     return $ Apt tVar
     where
-      parse d = P.map (pack . P.head . S.splitOn "/") $ S.splitOn "\n" d
+      parse =
+        P.map (pack . P.head . S.splitOn "/") .
+        P.filter (DL.isInfixOf "/") . DL.lines
 
 upgradeOutFilter :: [Text] -> [Text]
 upgradeOutFilter =
