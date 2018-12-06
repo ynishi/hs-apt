@@ -17,13 +17,16 @@ appOpts =
      value "apt" <>
      metavar "TARGET")
 
+main :: IO ()
 main = do
   o <- execParser opts
   case target o of
     "apt" -> do
       L.newApt >>= L.update . L.upg >>= L.list >>= L.upgrade
       return ()
-    "stack" -> upgradeStack UpgradeStack
+    "stack" -> do
+      L.newStack >>= L.update . L.upg >>= L.list >>= L.upgrade
+      return ()
   where
     opts =
       info

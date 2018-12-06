@@ -102,7 +102,7 @@ instance Entity Apt where
     d <- readProcess "apt" ("upgrade" : "-y" : P.map (sq . show) ps) ""
     let pd = parse d
     atomically . writeTVar tVar . upgradeOutFilter $ pd
-    TIO.putStrLn . T.concat $ "Upgraded:\n" : pd
+    TIO.putStrLn . concatList "Upgraded:" $ pd
     return $ Apt tVar
     where
       parse = P.map pack . DL.lines
@@ -113,15 +113,49 @@ instance Entity Apt where
     d <- readProcess "apt" ["list", "--upgradeable"] ""
     let pd = parse d
     atomically . writeTVar tVar . upgradeOutFilter $ pd
-    TIO.putStrLn . T.concat $ "Upgradable List:" : pd
+    TIO.putStrLn . concatList "Upgradable List:" $ pd
     return $ Apt tVar
     where
       parse =
         P.map (pack . P.head . S.splitOn "/") .
         P.filter (DL.isInfixOf "/") . DL.lines
 
+newtype Stack =
+  Stack (TVar [Text])
+
+newStack = do
+  tVar <- atomically $ newTVar []
+  return (Stack tVar)
+
+instance Entity Stack where
+  updateEntity (Stack tVar) = do
+    d <- readProcess "stack" ["update"] ""
+    TIO.putStrLn . pack $ "Updated:\n" ++ d
+    return $ Stack tVar
+  upgradeEntity (Stack tVar) = do
+    d <- readProcess "stack" ["upgrade"] ""
+    let pd = parse d
+    atomically . writeTVar tVar $ pd
+    TIO.putStrLn . concatList "Upgraded:" $ pd
+    return $ Stack tVar
+    where
+      parse =
+        P.map (pack . P.head . S.splitOn ",") .
+        P.filter (DL.isInfixOf "Version") . DL.lines
+  listEntity (Stack tVar) = do
+    d <- readProcess "stack" ["ls", "dependencies"] ""
+    let pd = parse d
+    atomically . writeTVar tVar $ pd
+    TIO.putStrLn . concatList "Dependencies:" $ pd
+    return $ Stack tVar
+    where
+      parse = P.map (pack . P.head . S.splitOn " ") . DL.lines
+
 upgradeOutFilter :: [Text] -> [Text]
 upgradeOutFilter =
   P.map pack .
   P.filter (not . P.null) .
   P.filter (\s -> count "..." (pack s) == 0) . P.map unpack
+
+concatList :: Text -> [Text] -> Text
+concatList title xs = T.concat $ title : DL.intersperse " " xs
