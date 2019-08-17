@@ -17,16 +17,24 @@ appOpts =
      value "apt" <>
      metavar "TARGET")
 
+updateAll t = do
+  L.newWithTvar t >>= L.update . L.upg >>= L.list >>= L.upgrade
+  return ()
+
 main :: IO ()
 main = do
   o <- execParser opts
+  putStrLn $ target o
   case target o of
-    "apt" -> do
-      L.newApt >>= L.update . L.upg >>= L.list >>= L.upgrade
-      return ()
-    "stack" -> do
-      L.newStack >>= L.update . L.upg >>= L.list >>= L.upgrade
-      return ()
+    "apt" -> updateAll L.Apt
+    "stack" -> updateAll L.Stack
+    "npm" -> updateAll L.NPM
+    "yarn" -> updateAll L.Yarn
+    "all" -> do
+      updateAll L.Apt
+      updateAll L.Stack
+      updateAll L.NPM
+      updateAll L.Yarn
   where
     opts =
       info
