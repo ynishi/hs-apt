@@ -85,12 +85,12 @@ class Entity a where
   upgradeEntity :: a -> IO a
   listEntity :: a -> IO a
 
+newWithTvar t = do
+  tVar <- atomically $ newTVar []
+  return . t $ tVar
+
 newtype Apt =
   Apt (TVar [Package])
-
-newApt = do
-  tVar <- atomically $ newTVar []
-  return (Apt tVar)
 
 instance Entity Apt where
   updateEntity (Apt tVar) = do
@@ -120,12 +120,56 @@ instance Entity Apt where
         P.map (pack . P.head . S.splitOn "/") .
         P.filter (DL.isInfixOf "/") . DL.lines
 
+newtype NPM =
+  NPM (TVar [Text])
+
+instance Entity NPM where
+  updateEntity (NPM tVar) = do
+    d <- readProcess "npm" ["update"] ""
+    TIO.putStrLn . pack $ "Updated:\n" ++ d
+    return $ NPM tVar
+  upgradeEntity (NPM tVar) = do
+    d <- readProcess "npm" ["install", "-g", "npm"] ""
+    let pd = parse d
+    atomically . writeTVar tVar $ pd
+    TIO.putStrLn . concatList "Upgraded:" $ pd
+    return $ NPM tVar
+    where
+      parse =
+        P.map (pack . P.head . S.splitOn ",") .
+        P.filter (DL.isInfixOf "Version") . DL.lines
+  listEntity (NPM tVar) = do
+    d <- readProcess "npm" ["list"] ""
+    let pd = parse d
+    atomically . writeTVar tVar $ pd
+    TIO.putStrLn . concatList "Dependencies:" $ pd
+    return $ NPM tVar
+    where
+      parse = P.map (pack . P.head . S.splitOn " ") . DL.lines
+
+newtype Yarn =
+  Yarn (TVar [Text])
+
+instance Entity Yarn where
+  updateEntity (Yarn tVar) = do
+    TIO.putStrLn . pack $ "do nothing:\n"
+    return $ Yarn tVar
+  upgradeEntity (Yarn tVar) = do
+    d <- readProcess "apt" ["upgrade", "-y", "yarn"] ""
+    let pd = parse d
+    atomically . writeTVar tVar $ pd
+    TIO.putStrLn . concatList "Upgraded:" $ pd
+    return $ Yarn tVar
+    where
+      parse =
+        P.map (pack . P.head . S.splitOn ",") .
+        P.filter (DL.isInfixOf "Version") . DL.lines
+  listEntity (Yarn tVar) = do
+    TIO.putStrLn . pack $ "do nothing:\n"
+    return $ Yarn tVar
+
 newtype Stack =
   Stack (TVar [Text])
-
-newStack = do
-  tVar <- atomically $ newTVar []
-  return (Stack tVar)
 
 instance Entity Stack where
   updateEntity (Stack tVar) = do
